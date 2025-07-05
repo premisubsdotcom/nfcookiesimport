@@ -84,14 +84,17 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
     except Exception:
         pass
 
-    # CUSTOM "Cookie:" LINE PARSER
+    # CUSTOM parser for any line ending with "COOKIE:"
     try:
         cnt = 0
         with open(filename, encoding='utf-8') as f:
             for line in f:
-                if not line.startswith('Cookie:'):
+                if ':' not in line:
                     continue
-                segments = line[len('Cookie:'):].split('|')
+                prefix, rest = line.split(':', 1)
+                if not prefix.strip().upper().endswith('COOKIE'):
+                    continue
+                segments = rest.split('|')
                 for seg in segments:
                     seg = seg.strip()
                     if '=' not in seg:
@@ -107,7 +110,7 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
                                 path='/')
                         cnt += 1
         if cnt:
-            print(f"✅ {cnt} cookies via custom Cookie: parser")
+            print(f"✅ {cnt} cookies via custom COOKIE line parser")
             return jar
     except Exception:
         pass
