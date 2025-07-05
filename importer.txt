@@ -2,9 +2,9 @@
 import re
 import json
 import requests
-from http.cookiejar import MozillaCookieJar, LWPCookieJar
-from http.cookies import SimpleCookie
-from requests.utils import cookiejar_from_dict
+from http.cookiejar    import MozillaCookieJar, LWPCookieJar
+from http.cookies      import SimpleCookie
+from requests.utils    import cookiejar_from_dict
 
 NETFLIX_DOMAIN = 'www.netflix.com'
 
@@ -84,35 +84,31 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
     except Exception:
         pass
 
-    # 6) explicit HTTP‐Cookie header parser
+    # 6) regex / header fallback
+    cnt = 0
+    skip = {'expires', 'domain', 'path', 'max-age', 'httponly', 'secure', 'samesite'}
+    pat = re.compile(r'([^\s=;]+)\s*=\s*([^\s;]+)')
     try:
         with open(filename, encoding='utf-8') as f:
             for line in f:
-                if line.strip().startswith("Cookie:"):
-                    cookie_str = line.split("Cookie:", 1)[1].strip()
+                # HTTP Cookie header format
+                if line.lower().startswith('cookie:'):
+                    header = line.split(':', 1)[1].strip().replace(' | ', '; ')
                     sc = SimpleCookie()
-                    sc.load(cookie_str)
-                    if sc:
-                        jar = cookiejar_from_dict(
-                            {k: v.value for k, v in sc.items()},
-                            cookiejar=None, overwrite=True
-                        )
-                        print(f"✅ {len(sc)} cookies via HTTP‐Cookie header")
+                    sc.load(header)
+                    cookies = {k: m.value for k, m in sc.items()}
+                    if cookies:
+                        jar = cookiejar_from_dict(cookies, overwrite=True)
+                        print(f"✅ {len(cookies)} cookies via HTTP header parse")
                         return jar
-    except Exception:
-        pass
-
-    # 7) regex fallback
-    skip = {'expires', 'domain', 'path', 'max-age', 'httponly', 'secure', 'samesite'}
-    pat = re.compile(r'([^\s=;]+)=([^\s;]+)')
-    cnt = 0
-    try:
-        for line in open(filename, encoding='utf-8'):
-            for name, val in pat.findall(line):
-                if name.lower() in skip:
-                    continue
-                jar.set(name, val, domain=NETFLIX_DOMAIN, path='/')
-                cnt += 1
+                # forgiving regex fallback
+                for name, val in pat.findall(line):
+                    if name.lower() in skip:
+                        continue
+                    jar.set(name, val,
+                            domain=NETFLIX_DOMAIN,
+                            path='/')
+                    cnt += 1
     except Exception:
         pass
 
