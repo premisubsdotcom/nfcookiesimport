@@ -1,23 +1,22 @@
+# importer.py
 #!/usr/bin/env python3
 import re
 import json
-
+import requests
 from http.cookiejar    import MozillaCookieJar, LWPCookieJar
 from http.cookies      import SimpleCookie
 from requests.utils    import cookiejar_from_dict
-from requests.cookies  import RequestsCookieJar
 
 NETFLIX_DOMAIN = 'www.netflix.com'
 
-def load_cookies(filename: str = 'cookie.txt') -> RequestsCookieJar:
-    jar = RequestsCookieJar()
+def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCookieJar:
+    jar = requests.cookies.RequestsCookieJar()
 
     # 1) Netscape/MozillaCookieJar
     try:
         mjar = MozillaCookieJar()
         mjar.load(filename, ignore_discard=True, ignore_expires=True)
-        for c in mjar:
-            jar.set_cookie(c)
+        for c in mjar: jar.set_cookie(c)
         print(f"✅ {len(mjar)} cookies via MozillaCookieJar")
         return jar
     except Exception:
@@ -27,8 +26,7 @@ def load_cookies(filename: str = 'cookie.txt') -> RequestsCookieJar:
     try:
         ljar = LWPCookieJar()
         ljar.load(filename, ignore_discard=True, ignore_expires=True)
-        for c in ljar:
-            jar.set_cookie(c)
+        for c in ljar: jar.set_cookie(c)
         print(f"✅ {len(ljar)} cookies via LWPCookieJar")
         return jar
     except Exception:
@@ -52,10 +50,9 @@ def load_cookies(filename: str = 'cookie.txt') -> RequestsCookieJar:
         data = json.load(open(filename, encoding='utf-8'))
         cnt = 0
         for c in data:
-            name, value = c.get('name'), c.get('value')
-            if not (name and value):
-                continue
-            jar.set(name, value,
+            n, v = c.get('name'), c.get('value')
+            if not (n and v): continue
+            jar.set(n, v,
                     domain=c.get('domain', NETFLIX_DOMAIN),
                     path=c.get('path', '/'))
             cnt += 1
@@ -65,7 +62,7 @@ def load_cookies(filename: str = 'cookie.txt') -> RequestsCookieJar:
     except Exception:
         pass
 
-    # 5) TSV parser fallback
+    # 5) TSV parser fallback for tab-separated cookie files
     try:
         with open(filename, encoding='utf-8') as f:
             cnt = 0
@@ -74,7 +71,10 @@ def load_cookies(filename: str = 'cookie.txt') -> RequestsCookieJar:
                 if len(parts) >= 7:
                     domain, host_only, path, secure_flag, expires, name, value = parts[:7]
                     secure = secure_flag.lower() == 'true'
-                    jar.set(name, value, domain=domain, path=path, secure=secure)
+                    jar.set(name, value,
+                            domain=domain,
+                            path=path,
+                            secure=secure)
                     cnt += 1
             if cnt:
                 print(f"✅ {cnt} cookies via TSV parser")
@@ -89,8 +89,7 @@ def load_cookies(filename: str = 'cookie.txt') -> RequestsCookieJar:
     try:
         for line in open(filename, encoding='utf-8'):
             for name, val in pat.findall(line):
-                if name.lower() in skip:
-                    continue
+                if name.lower() in skip: continue
                 jar.set(name, val, domain=NETFLIX_DOMAIN, path='/')
                 cnt += 1
     except Exception:
