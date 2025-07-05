@@ -1,3 +1,4 @@
+# importer.py
 #!/usr/bin/env python3
 import re
 import json
@@ -15,8 +16,7 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
     try:
         mjar = MozillaCookieJar()
         mjar.load(filename, ignore_discard=True, ignore_expires=True)
-        for c in mjar:
-            jar.set_cookie(c)
+        for c in mjar: jar.set_cookie(c)
         print(f"✅ {len(mjar)} cookies via MozillaCookieJar")
         return jar
     except Exception:
@@ -26,8 +26,7 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
     try:
         ljar = LWPCookieJar()
         ljar.load(filename, ignore_discard=True, ignore_expires=True)
-        for c in ljar:
-            jar.set_cookie(c)
+        for c in ljar: jar.set_cookie(c)
         print(f"✅ {len(ljar)} cookies via LWPCookieJar")
         return jar
     except Exception:
@@ -52,8 +51,7 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
         cnt = 0
         for c in data:
             n, v = c.get('name'), c.get('value')
-            if not (n and v):
-                continue
+            if not (n and v): continue
             jar.set(n, v,
                     domain=c.get('domain', NETFLIX_DOMAIN),
                     path=c.get('path', '/'))
@@ -84,57 +82,16 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
     except Exception:
         pass
 
-    # CUSTOM parser for any line ending with "COOKIE:"
-    try:
-        cnt = 0
-        with open(filename, encoding='utf-8') as f:
-            for line in f:
-                if ':' not in line:
-                    continue
-                prefix, rest = line.split(':', 1)
-                if not prefix.strip().upper().endswith('COOKIE'):
-                    continue
-                segments = rest.split('|')
-                for seg in segments:
-                    seg = seg.strip()
-                    if '=' not in seg:
-                        continue
-                    key, val = [s.strip() for s in seg.split('=', 1)]
-                    if key.lower() == 'cookie' and val.lower().startswith('netflixid='):
-                        ck_name, ck_val = val.split('=', 1)
-                    else:
-                        ck_name, ck_val = key, val
-                    if ck_name in ('NetflixId', 'SecureNetflixId'):
-                        jar.set(ck_name, ck_val,
-                                domain=NETFLIX_DOMAIN,
-                                path='/')
-                        cnt += 1
-        if cnt:
-            print(f"✅ {cnt} cookies via custom COOKIE line parser")
-            return jar
-    except Exception:
-        pass
-
     # 6) regex fallback
-    skip = {'expires', 'domain', 'path', 'max-age', 'httponly', 'secure', 'samesite'}
-    pat = re.compile(r'([^=;|]+?)\s*=\s*([^;|]+)')
-    cnt = 0
+    skip = {'expires','domain','path','max-age','httponly','secure','samesite'}
+    pat  = re.compile(r'([^\s=;]+)=([^\s;]+)')
+    cnt  = 0
     try:
         for line in open(filename, encoding='utf-8'):
             for name, val in pat.findall(line):
-                name = name.strip()
-                val = val.strip()
-                if name.lower() in skip:
-                    continue
-                if name.lower() == 'cookie' and val.lower().startswith('netflixid='):
-                    ck_name, ck_val = val.split('=', 1)
-                else:
-                    ck_name, ck_val = name, val
-                if ck_name in ('NetflixId', 'SecureNetflixId'):
-                    jar.set(ck_name, ck_val,
-                            domain=NETFLIX_DOMAIN,
-                            path='/')
-                    cnt += 1
+                if name.lower() in skip: continue
+                jar.set(name, val, domain=NETFLIX_DOMAIN, path='/')
+                cnt += 1
     except Exception:
         pass
 
