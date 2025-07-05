@@ -1,4 +1,3 @@
-# importer.py
 #!/usr/bin/env python3
 import re
 import json
@@ -12,11 +11,31 @@ NETFLIX_DOMAIN = 'www.netflix.com'
 def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCookieJar:
     jar = requests.cookies.RequestsCookieJar()
 
+    # Custom format: extract the Netflix cookie header and parse via SimpleCookie
+    try:
+        text = open(filename, encoding='utf-8').read()
+        m = re.search(r'Cookie\s*=\s*([^|]+)', text)
+        if m:
+            cookie_header = m.group(1).strip()
+            sc = SimpleCookie()
+            sc.load(cookie_header)
+            for name, morsel in sc.items():
+                # Use provided domain/path or defaults
+                domain = morsel['domain'] or NETFLIX_DOMAIN
+                path = morsel['path'] or '/'
+                secure = bool(morsel['secure'])
+                jar.set(name, morsel.value, domain=domain, path=path, secure=secure)
+            print(f"✅ Parsed {len(sc)} cookies from custom header")
+            return jar
+    except Exception:
+        pass
+
     # 1) Netscape/MozillaCookieJar
     try:
         mjar = MozillaCookieJar()
         mjar.load(filename, ignore_discard=True, ignore_expires=True)
-        for c in mjar: jar.set_cookie(c)
+        for c in mjar:
+            jar.set_cookie(c)
         print(f"✅ {len(mjar)} cookies via MozillaCookieJar")
         return jar
     except Exception:
@@ -26,7 +45,8 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
     try:
         ljar = LWPCookieJar()
         ljar.load(filename, ignore_discard=True, ignore_expires=True)
-        for c in ljar: jar.set_cookie(c)
+        for c in ljar:
+            jar.set_cookie(c)
         print(f"✅ {len(ljar)} cookies via LWPCookieJar")
         return jar
     except Exception:
@@ -51,7 +71,8 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
         cnt = 0
         for c in data:
             n, v = c.get('name'), c.get('value')
-            if not (n and v): continue
+            if not (n and v):
+                continue
             jar.set(n, v,
                     domain=c.get('domain', NETFLIX_DOMAIN),
                     path=c.get('path', '/'))
@@ -83,13 +104,14 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
         pass
 
     # 6) regex fallback
-    skip = {'expires','domain','path','max-age','httponly','secure','samesite'}
+    skip = {'expires', 'domain', 'path', 'max-age', 'httponly', 'secure', 'samesite'}
     pat  = re.compile(r'([^\s=;]+)=([^\s;]+)')
     cnt  = 0
     try:
         for line in open(filename, encoding='utf-8'):
             for name, val in pat.findall(line):
-                if name.lower() in skip: continue
+                if name.lower() in skip:
+                    continue
                 jar.set(name, val, domain=NETFLIX_DOMAIN, path='/')
                 cnt += 1
     except Exception:
