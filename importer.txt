@@ -84,28 +84,51 @@ def load_cookies(filename: str = 'cookie.txt') -> requests.cookies.RequestsCooki
     except Exception:
         pass
 
-    # 6) regex / header fallback
-    cnt = 0
-    skip = {'expires', 'domain', 'path', 'max-age', 'httponly', 'secure', 'samesite'}
-    pat = re.compile(r'([^\s=;]+)\s*=\s*([^\s;]+)')
+    # CUSTOM "Cookie:" LINE PARSER
     try:
+        cnt = 0
         with open(filename, encoding='utf-8') as f:
             for line in f:
-                # HTTP Cookie header format
-                if line.lower().startswith('cookie:'):
-                    header = line.split(':', 1)[1].strip().replace(' | ', '; ')
-                    sc = SimpleCookie()
-                    sc.load(header)
-                    cookies = {k: m.value for k, m in sc.items()}
-                    if cookies:
-                        jar = cookiejar_from_dict(cookies, overwrite=True)
-                        print(f"✅ {len(cookies)} cookies via HTTP header parse")
-                        return jar
-                # forgiving regex fallback
-                for name, val in pat.findall(line):
-                    if name.lower() in skip:
+                if not line.startswith('Cookie:'):
+                    continue
+                segments = line[len('Cookie:'):].split('|')
+                for seg in segments:
+                    seg = seg.strip()
+                    if '=' not in seg:
                         continue
-                    jar.set(name, val,
+                    key, val = [s.strip() for s in seg.split('=', 1)]
+                    if key.lower() == 'cookie' and val.lower().startswith('netflixid='):
+                        ck_name, ck_val = val.split('=', 1)
+                    else:
+                        ck_name, ck_val = key, val
+                    if ck_name in ('NetflixId', 'SecureNetflixId'):
+                        jar.set(ck_name, ck_val,
+                                domain=NETFLIX_DOMAIN,
+                                path='/')
+                        cnt += 1
+        if cnt:
+            print(f"✅ {cnt} cookies via custom Cookie: parser")
+            return jar
+    except Exception:
+        pass
+
+    # 6) regex fallback
+    skip = {'expires', 'domain', 'path', 'max-age', 'httponly', 'secure', 'samesite'}
+    pat = re.compile(r'([^=;|]+?)\s*=\s*([^;|]+)')
+    cnt = 0
+    try:
+        for line in open(filename, encoding='utf-8'):
+            for name, val in pat.findall(line):
+                name = name.strip()
+                val = val.strip()
+                if name.lower() in skip:
+                    continue
+                if name.lower() == 'cookie' and val.lower().startswith('netflixid='):
+                    ck_name, ck_val = val.split('=', 1)
+                else:
+                    ck_name, ck_val = name, val
+                if ck_name in ('NetflixId', 'SecureNetflixId'):
+                    jar.set(ck_name, ck_val,
                             domain=NETFLIX_DOMAIN,
                             path='/')
                     cnt += 1
